@@ -21,6 +21,9 @@ struct Player
     int attackPoints;
     int deffendPoints;
 
+    float damageFeedbackTimer;
+    int lastDamage;
+
     bool encounteredSomething;
     std::string whatEncountered;
 
@@ -42,6 +45,7 @@ struct Player
         const int (&terrain)[rows][cols]);
 
     void Update(
+        float dt,
         const int (&terrain)[rows][cols],
         int mapRows,
         int mapCols,

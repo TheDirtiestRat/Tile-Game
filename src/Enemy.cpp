@@ -2,8 +2,16 @@
 #include "../header/player.hpp"
 #include "../header/enemy.hpp"
 
+#include <algorithm>
+#include <cmath>
 #include <queue>
 #include <vector>
+
+namespace
+{
+constexpr float damageFeedbackDuration = 0.45f;
+constexpr int damageTextSize = 20;
+}
 
 Enemy::Enemy(Texture2D img, bool randomMove, int healthPoints)
 {
@@ -16,6 +24,8 @@ Enemy::Enemy(Texture2D img, bool randomMove, int healthPoints)
     moveRandom = randomMove;
     isActive = true;
     currentHealth = healthPoints;
+    damageFeedbackTimer = 0.0f;
+    lastDamage = 0;
     // enemy stats
     attackPoints = 2;
 }
@@ -27,7 +37,12 @@ void Enemy::AtkPlayer(int damage, Player &player)
 
 void Enemy::Damage(int damage)
 {
-    currentHealth -= damage;
+    if (damage <= 0 || !isActive)
+        return;
+
+    currentHealth = std::max(0, currentHealth - damage);
+    damageFeedbackTimer = damageFeedbackDuration;
+    lastDamage = damage;
 
     // if below health then die
     if (currentHealth <= 0)
@@ -60,6 +75,11 @@ void Enemy::Update(
     int mapCols,
     int tileSize)
 {
+    damageFeedbackTimer = std::max(0.0f, damageFeedbackTimer - dt);
+
+    if (!isActive || !player.isActive)
+        return;
+
     if (moveRandom)
     {
         moveTimer += dt;
@@ -89,20 +109,19 @@ void Enemy::Update(
             position.x + dirX * tileSize,
             position.y + dirY * tileSize};
 
-        int nextCol = (int)(nextPosition.x / tileSize);
-        int nextRow = (int)(nextPosition.y / tileSize);
+        int nextCol = static_cast<int>(nextPosition.x / tileSize);
+        int nextRow = static_cast<int>(nextPosition.y / tileSize);
 
         // Check wall
         if (IsWall(nextRow, nextCol, terrain, mapRows, mapCols))
             return;
 
         // Check player position
-        int playerCol = (int)(player.position.x / tileSize);
-        int playerRow = (int)(player.position.y / tileSize);
+        int playerCol = static_cast<int>(player.position.x / tileSize);
+        int playerRow = static_cast<int>(player.position.y / tileSize);
 
         if (nextCol == playerCol && nextRow == playerRow)
         {
-            // damage the player here
             AtkPlayer(attackPoints, player);
             return;
         }
@@ -119,15 +138,14 @@ void Enemy::Update(
 
         moveTimer = 0.0f;
 
-        int enemyCol = (int)(position.x / tileSize);
-        int enemyRow = (int)(position.y / tileSize);
-        int playerCol = (int)(player.position.x / tileSize);
-        int playerRow = (int)(player.position.y / tileSize);
+        const int enemyCol = static_cast<int>(position.x / tileSize);
+        const int enemyRow = static_cast<int>(position.y / tileSize);
+        const int playerCol = static_cast<int>(player.position.x / tileSize);
+        const int playerRow = static_cast<int>(player.position.y / tileSize);
 
-        // Already next to the player on the same tile.
         if (enemyCol == playerCol && enemyRow == playerRow)
         {
-            // Damage the player here.
+            AtkPlayer(attackPoints, player);
             return;
         }
 
@@ -141,7 +159,6 @@ void Enemy::Update(
         std::vector<std::vector<bool>> visited(
             mapRows, std::vector<bool>(mapCols, false));
 
-        // Store the previous tile so we can rebuild the path.
         std::vector<std::vector<Node>> previous(
             mapRows, std::vector<Node>(mapCols, {-1, -1}));
 
@@ -176,7 +193,6 @@ void Enemy::Update(
                 if (visited[nextRow][nextCol])
                     continue;
 
-                // Allow the player tile as the destination.
                 if (!(nextRow == playerRow && nextCol == playerCol) &&
                     IsWall(nextRow, nextCol, terrain, mapRows, mapCols))
                     continue;
@@ -188,39 +204,69 @@ void Enemy::Update(
         }
 
         if (!foundPlayer)
-            return; // No path to the player.
+            return;
 
-        // Walk backward from the player to find the first tile in the path.
-        Node step = {playerRow, playerCol};
+        std::vector<Node> path;
+        Node current = {playerRow, playerCol};
+        path.push_back(current);
 
-        while (previous[step.row][step.col].row != enemyRow ||
-               previous[step.row][step.col].col != enemyCol)
+        while (previous[current.row][current.col].row >= 0 &&
+               previous[current.row][current.col].col >= 0)
         {
-            step = previous[step.row][step.col];
+            current = previous[current.row][current.col];
+            path.push_back(current);
 
-            if (step.row < 0)
-                return;
+            if (current.row == enemyRow && current.col == enemyCol)
+                break;
         }
 
-        // The next tile is the player's tile.
-        if (step.row == playerRow && step.col == playerCol)
+        if (path.size() < 2)
+            return;
+
+        const Node nextStep = path[path.size() - 2];
+        const int nextTileX = nextStep.col * tileSize;
+        const int nextTileY = nextStep.row * tileSize;
+
+        if (nextStep.row == playerRow && nextStep.col == playerCol)
         {
-            // Damage the player here.
             AtkPlayer(attackPoints, player);
             return;
         }
 
-        position = {
-            (float)(step.col * tileSize),
-            (float)(step.row * tileSize)};
+        position = {static_cast<float>(nextTileX), static_cast<float>(nextTileY)};
     }
 }
 
 void Enemy::Draw()
 {
+    if (!isActive && damageFeedbackTimer <= 0.0f)
+        return;
+
+    Vector2 drawPosition = position;
+    Color tint = WHITE;
+
+    if (damageFeedbackTimer > 0.0f)
+    {
+        const float elapsed = damageFeedbackDuration - damageFeedbackTimer;
+        const float progress = elapsed / damageFeedbackDuration;
+        drawPosition.x += std::sin(elapsed * 80.0f) * 4.0f;
+
+        if (static_cast<int>(elapsed / 0.07f) % 2 == 0)
+            tint = RED;
+
+        const char* damageText = TextFormat("-%d", lastDamage);
+        const int textWidth = MeasureText(damageText, damageTextSize);
+        DrawText(
+            damageText,
+            static_cast<int>(position.x + (tileSize - textWidth) / 2),
+            static_cast<int>(position.y - 20.0f - progress * 28.0f),
+            damageTextSize,
+            Fade(RED, 1.0f - progress));
+    }
+
     DrawTexture(
         text_img,
-        (int)position.x,
-        (int)position.y,
-        RED);
+        static_cast<int>(drawPosition.x),
+        static_cast<int>(drawPosition.y),
+        tint);
 }

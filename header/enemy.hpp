@@ -18,6 +18,9 @@ struct Enemy
     int currentHealth;
     int attackPoints;
 
+    float damageFeedbackTimer;
+    int lastDamage;
+
     bool moveRandom;
     bool isActive;
 

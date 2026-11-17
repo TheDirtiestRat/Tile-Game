@@ -1,5 +1,3 @@
-#pragma once
-
 #include <raylib.h>
 #include <string>
 #include "../header/game_config.hpp"
