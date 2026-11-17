@@ -6,6 +6,7 @@
 
 #include "game_config.hpp"
 #include "enemy.hpp"
+#include "PlayerStatsManager.hpp"
 
 struct Player
 {
@@ -15,11 +16,7 @@ struct Player
     int nextDirx;
     int nextDiry;
 
-    //player stats
-    int maxHealth;
-    int currentHealth;
-    int attackPoints;
-    int deffendPoints;
+    PlayerStatsManager stats;
 
     float damageFeedbackTimer;
     int lastDamage;

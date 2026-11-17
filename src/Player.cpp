@@ -12,6 +12,7 @@ constexpr int damageTextSize = 20;
 }
 
 Player::Player(Texture2D img, int maxHP)
+    : stats(maxHP)
 {
     text_img = img;
     // position = spawn_location;
@@ -23,10 +24,6 @@ Player::Player(Texture2D img, int maxHP)
     whatEncountered = "...";
 
     isActive = true;
-    maxHealth = maxHP;
-    currentHealth = maxHealth;
-    attackPoints = 3;
-    deffendPoints = 2;
     damageFeedbackTimer = 0.0f;
     lastDamage = 0;
 }
@@ -57,14 +54,15 @@ void Player::Damage(int damage) {
     if (damage <= 0 || !isActive)
         return;
 
-    currentHealth = std::max(0, currentHealth - damage);
-    damageFeedbackTimer = damageFeedbackDuration;
-    lastDamage = damage;
-    Player::Encounter("Player is Attacked!!");
+    const int appliedDamage = stats.TakeDamage(damage);
+    if (appliedDamage <= 0)
+        return;
 
-    //if below health then die
-    if (currentHealth <= 0) {
-        //player is dead
+    damageFeedbackTimer = damageFeedbackDuration;
+    lastDamage = appliedDamage;
+    Player::Encounter(TextFormat("Player takes %d damage!", appliedDamage));
+
+    if (stats.GetCurrentHealth() <= 0) {
         isActive = false;
     }
 }
@@ -148,8 +146,9 @@ void Player::Update(
 
         if (IsEnemy(enemyX, enemyY))
         {
-            Player::Encounter("Damaging enemy by 2 points!");
-            enemies[i].Damage(2);
+            const int damage = stats.GetAttackPoints();
+            Player::Encounter(TextFormat("Damaging enemy by %d points!", damage));
+            enemies[i].Damage(damage);
             return;
         }
     }

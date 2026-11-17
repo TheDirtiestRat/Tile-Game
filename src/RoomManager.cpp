@@ -36,6 +36,14 @@ Room rooms[roomCount] = {
         {
             {2, 9, 2},
             {1, 8, 3}
+        },
+        {
+            {2, 1, ItemType::HealingPotion, 2, false},
+            {5, 2, ItemType::Key, 1, false}
+        },
+        {
+            {4, 2, 0, false, {{ItemType::HealingPotion, 2}}},
+            {1, 7, 1, false, {{ItemType::HealingPotion, 1}, {ItemType::Key, 1}}}
         }
     },
     {
@@ -57,6 +65,14 @@ Room rooms[roomCount] = {
         {
             {7, 8, 4},
             {2, 8, 0}
+        },
+        {
+            {3, 2, ItemType::HealingPotion, 1, false},
+            {6, 2, ItemType::Key, 1, false}
+        },
+        {
+            {4, 1, 1, false, {{ItemType::HealingPotion, 2}}},
+            {5, 4, 0, false, {{ItemType::Key, 1}}}
         }
     },
     {
@@ -78,6 +94,14 @@ Room rooms[roomCount] = {
         {
             {5, 8, 3},
             {1, 8, 4}
+        },
+        {
+            {2, 4, ItemType::HealingPotion, 1, false},
+            {6, 1, ItemType::Key, 1, false}
+        },
+        {
+            {4, 5, 1, false, {{ItemType::HealingPotion, 1}, {ItemType::Key, 1}}},
+            {5, 1, 0, false, {{ItemType::HealingPotion, 2}}}
         }
     },
     {
@@ -99,6 +123,14 @@ Room rooms[roomCount] = {
         {
             {1, 8, 0},
             {5, 6, 4}
+        },
+        {
+            {2, 3, ItemType::HealingPotion, 1, false},
+            {6, 1, ItemType::Key, 1, false}
+        },
+        {
+            {5, 4, 1, false, {{ItemType::HealingPotion, 2}}},
+            {4, 8, 0, false, {{ItemType::Key, 1}}}
         }
     },
     {
@@ -120,6 +152,14 @@ Room rooms[roomCount] = {
         {
             {1, 8, 1},
             {5, 8, 2}
+        },
+        {
+            {2, 4, ItemType::HealingPotion, 1, false},
+            {6, 1, ItemType::Key, 1, false}
+        },
+        {
+            {4, 5, 1, false, {{ItemType::HealingPotion, 1}, {ItemType::Key, 1}}},
+            {5, 2, 0, false, {{ItemType::HealingPotion, 2}}}
         }
     }
 };
@@ -186,6 +226,54 @@ void RoomUpdate(Player& player, std::vector<Enemy>& enemies)
             LoadRoom(door.destinationRoom, player, enemies);
             return;
         }
+    }
+}
+
+bool TryCollectItemAt(int row, int col, InventorySystem& inventory, std::string& message)
+{
+    for (ItemSpawn& item : rooms[current_room].items) {
+        if (item.collected || item.row != row || item.col != col)
+            continue;
+
+        if (!inventory.AddItem(item.type, item.quantity)) {
+            message = "Inventory is full. The item remains in the room.";
+            return true;
+        }
+
+        item.collected = true;
+        message = TextFormat("Collected %s x%d.", GetItemName(item.type), item.quantity);
+        return true;
+    }
+
+    return false;
+}
+
+ChestSpawn* FindChestAt(int row, int col)
+{
+    for (ChestSpawn& chest : rooms[current_room].chests) {
+        if (chest.row == row && chest.col == col)
+            return &chest;
+    }
+
+    return nullptr;
+}
+
+void DrawRoomObjects(Texture2D itemTexture, Texture2D keyTexture, Texture2D chestTexture)
+{
+    for (const ItemSpawn& item : rooms[current_room].items) {
+        if (item.collected)
+            continue;
+
+        const Texture2D texture = item.type == ItemType::Key ? keyTexture : itemTexture;
+        DrawTexture(texture, item.col * tileSize, item.row * tileSize, WHITE);
+    }
+
+    for (const ChestSpawn& chest : rooms[current_room].chests) {
+        DrawTexture(
+            chestTexture,
+            chest.col * tileSize,
+            chest.row * tileSize,
+            chest.isOpen ? GRAY : WHITE);
     }
 }
 
